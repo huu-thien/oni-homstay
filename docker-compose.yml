@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: oni-homestay-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: oni-homestay
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d oni-homestay"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .\backend
+    container_name: homestay-backend
+    restart: unless-stopped
+    env_file:
+      - .\backend\.env.example
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/homestay
+      FRONTEND_URL: http://localhost:5173
+    ports:
+      - "3000:3000"
+    command: sh -c "npm install && npm run start:dev"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .\backend:/app
+      - /app/node_modules
+
+  frontend:
+    build:
+      context: .\frontend
+    container_name: homestay-frontend
+    restart: unless-stopped
+    env_file:
+      - .\frontend\.env.example
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - backend
+    volumes:
+      - .\frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:
